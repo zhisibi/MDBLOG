@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { promises as fs } from 'fs';
 import path from 'path';
 import type { Category, PostRecord, Tag } from './types';
+import { slugify } from './slugify';
 
 const postsDirectory = path.join(process.cwd(), 'content', 'posts');
 
@@ -17,17 +18,17 @@ type Frontmatter = {
 };
 
 function slugify(value: string) {
-  // 如果有值，转换为 URL 友好的英文 slug
   if (value && value.trim()) {
-    // 移除特殊字符，只保留英文、数字、连字符
     const slug = value
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-    return slug || `post-${Date.now()}`;
+      .normalize('NFKD')
+      .replace(/[^\p{L}\p{N}-]+/gu, '-')
+      .replace(/^-+|-+$/g, '');
+    if (slug) {
+      return slug;
+    }
   }
-  // 无值时使用时间戳
   return `post-${Date.now()}`;
 }
 
@@ -151,6 +152,7 @@ function normalizePost(fileName: string, source: string): PostRecord {
         }
       : null,
     tags,
+    fileName,
   };
 }
 
@@ -178,6 +180,11 @@ export const getPublishedPosts = cache(async () => {
 
 export const getPostBySlug = cache(async (slug: string) => {
   const posts = await getPublishedPosts();
+  return posts.find((post) => post.slug === slug) ?? null;
+});
+
+export const getPostBySlugIncludeDrafts = cache(async (slug: string) => {
+  const posts = await getAllPosts();
   return posts.find((post) => post.slug === slug) ?? null;
 });
 

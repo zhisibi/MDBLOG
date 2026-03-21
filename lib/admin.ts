@@ -166,7 +166,7 @@ export async function deletePostAction(formData: FormData) {
   const post = posts.find((item) => item.slug === slug);
   if (!post) throw new Error('文章不存在');
 
-  const filePath = path.join(postsDirectory, `${post.slug}.md`);
+  const filePath = path.join(postsDirectory, post.fileName);
   await fs.unlink(filePath);
 
   await revalidateBlogPaths(slug);
@@ -179,18 +179,22 @@ export async function listAdminPosts() {
 
 export async function downloadPostContent(slug: string) {
   await requireAuth();
-  const filePath = path.join(postsDirectory, `${slug}.md`);
-  const content = await fs.readFile(filePath, 'utf8');
+  const posts = await getAllPosts();
+  const post = posts.find((item) => item.slug === slug);
+  if (!post) throw new Error('文章不存在');
+  const content = await fs.readFile(path.join(postsDirectory, post.fileName), 'utf8');
   return {
-    filename: `${slug}.md`,
+    filename: post.fileName,
     content,
   };
 }
 
 export async function getEditablePost(slug: string) {
   await requireAuth();
-  const filePath = path.join(postsDirectory, `${slug}.md`);
-  const content = await fs.readFile(filePath, 'utf8');
+  const posts = await getAllPosts();
+  const post = posts.find((item) => item.slug === slug);
+  if (!post) throw new Error('文章不存在');
+  const content = await fs.readFile(path.join(postsDirectory, post.fileName), 'utf8');
   const { frontmatter, body } = splitFrontmatter(content);
 
   return {
@@ -226,6 +230,10 @@ export async function updatePostAction(formData: FormData): Promise<{ success?: 
     if (!title) return { error: '标题不能为空' };
     if (!body.trim()) return { error: '正文不能为空' };
 
+    const posts = await getAllPosts();
+    const existingPost = posts.find((item) => item.slug === originalSlug);
+    if (!existingPost) return { error: '文章不存在' };
+
     const nextSlug = slugify(slugInput || title);
     const tags = tagsInput
       .split(/[，,]/)
@@ -244,7 +252,7 @@ export async function updatePostAction(formData: FormData): Promise<{ success?: 
       body,
     });
 
-    const originalPath = path.join(postsDirectory, `${originalSlug}.md`);
+    const originalPath = path.join(postsDirectory, existingPost.fileName);
     const nextPath = path.join(postsDirectory, `${nextSlug}.md`);
 
     if (originalSlug !== nextSlug) {

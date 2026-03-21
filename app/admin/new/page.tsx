@@ -1,15 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { slugify } from '@/lib/slugify';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createPostAction } from '@/lib/admin';
 import { MarkdownEditor } from './markdown-editor';
 
+const getCurrentLocalDateTime = () => {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset();
+  const local = new Date(now.getTime() - tzOffset * 60 * 1000);
+  return local.toISOString().slice(0, 16);
+};
+
 export default function AdminNewPostPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const slugInputRef = useRef<HTMLInputElement>(null);
+  const defaultPublishedAt = getCurrentLocalDateTime();
+  const defaultSlugValue = useMemo(() => Date.now().toString(), []);
+  const rowClass = 'w-full';
+  const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900';
+  const selectClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900';
+  const textareaClass = inputClass + ' min-h-[80px] resize-none';
 
   const handleSubmit = async (formData: FormData) => {
     setSaving(true);
@@ -28,26 +43,38 @@ export default function AdminNewPostPage() {
     }
   };
 
+  const handlePreviewClick = () => {
+    const raw = slugInputRef.current?.value.trim() || defaultSlugValue;
+    const slug = slugify(raw);
+    if (typeof window !== 'undefined') {
+      window.open(`${window.location.origin}/preview/${slug}`, '_blank');
+    }
+  };
+
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-brand-600">
-            Admin Editor
-          </p>
-          <h1 className="mt-2 text-3xl font-black text-slate-900 dark:text-white">新建文章</h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            支持 Markdown 语法，左侧编辑右侧实时预览。
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin"
-            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            返回后台
+      <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-2">
+          <Link href="/admin" className="px-2 text-xs text-slate-500 hover:text-slate-700">
+            ← 返回
           </Link>
+          <span className="text-slate-300">|</span>
+          <button
+            type="button"
+            onClick={handlePreviewClick}
+            className="px-2 text-xs text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+          >
+            预览
+          </button>
         </div>
+        <button
+          form="new-post-form"
+          type="submit"
+          disabled={saving}
+          className="flex items-center gap-1 rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-bold text-white shadow-md transition hover:bg-brand-500 disabled:opacity-60"
+        >
+          {saving ? '保存中...' : '💾 保存'}
+        </button>
       </div>
 
       {error && (
@@ -56,75 +83,67 @@ export default function AdminNewPostPage() {
         </div>
       )}
 
-      <form action={handleSubmit} className="space-y-6">
-        <div className="grid gap-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft dark:border-slate-800 dark:bg-slate-900 md:grid-cols-2">
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">标题</span>
+      <form id="new-post-form" action={handleSubmit} className="space-y-4">
+        <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft dark:border-slate-800 dark:bg-slate-900 md:grid-cols-2">
+          <div className={rowClass}>
             <input
               name="title"
-              placeholder="输入文章标题"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900"
+              placeholder="标题 - 输入文章标题"
+              className={inputClass}
               required
             />
-          </label>
+          </div>
 
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Slug</span>
+          <div className={rowClass}>
             <input
               name="slug"
               placeholder="url-path（留空自动生成）"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900"
+              className={inputClass}
+              defaultValue={defaultSlugValue}
+              ref={slugInputRef}
             />
-          </label>
+          </div>
 
-          <label className="block space-y-2 md:col-span-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">摘要</span>
+          <div className={`${rowClass} md:col-span-2`}>
             <textarea
               name="excerpt"
-              placeholder="文章摘要，显示在列表页"
+              placeholder="摘要 - 显示在列表页"
               rows={2}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900"
+              className={textareaClass}
             />
-          </label>
+          </div>
 
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">分类</span>
+          <div className={rowClass}>
             <input
               name="category"
-              placeholder="如：技术、生活、随笔"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900"
+              placeholder="分类：如 技术、生活、随笔"
+              className={inputClass}
             />
-          </label>
+          </div>
 
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">标签</span>
+          <div className={rowClass}>
             <input
               name="tags"
-              placeholder="多个标签用逗号分隔"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900"
+              placeholder="标签 - 多个标签用逗号分隔"
+              className={inputClass}
             />
-          </label>
+          </div>
 
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">状态</span>
-            <select
-              name="status"
-              defaultValue="draft"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900"
-            >
+          <div className={rowClass}>
+            <select name="status" defaultValue="draft" className={selectClass}>
               <option value="draft">草稿 (draft)</option>
               <option value="published">已发布 (published)</option>
             </select>
-          </label>
+          </div>
 
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">发布时间</span>
+          <div className={rowClass}>
             <input
               name="publishedAt"
               type="datetime-local"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-brand-900"
+              defaultValue={defaultPublishedAt}
+              className={inputClass}
             />
-          </label>
+          </div>
         </div>
 
         {/* Markdown 编辑器 */}

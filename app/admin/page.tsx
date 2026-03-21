@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import Head from 'next/head';
+import { useState, useEffect, useRef, FormEvent, useMemo } from 'react';
 import Link from 'next/link';
 import { logoutAction } from '@/lib/admin';
 import { DeleteButton } from './delete-button';
@@ -17,6 +18,7 @@ interface Post {
 
 // 博客设置
 interface BlogSettings {
+  siteName: string;
   heroTitle: string;
   heroDescription: string;
   heroTextColor: string;
@@ -24,9 +26,11 @@ interface BlogSettings {
   heroBgGradient: string;
   heroBadge: string;
   backgroundImage: string;
+  postDisplayMode: 'card' | 'list';
 }
 
 const defaultSettings: BlogSettings = {
+  siteName: 'MDBLOG',
   heroTitle: '一个简洁、现代、移动端友好的个人博客系统',
   heroDescription: '支持使用 Markdown 发布文章，自动渲染为完整网页，同时具备分类、标签、文章详情和归档浏览能力。',
   heroTextColor: '#ffffff',
@@ -34,16 +38,23 @@ const defaultSettings: BlogSettings = {
   heroBgGradient: 'from-slate-900 via-slate-800 to-brand-900',
   heroBadge: 'Markdown · 响应式 · 暗黑模式',
   backgroundImage: '',
+  postDisplayMode: 'card',
 };
 
 export default function AdminPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const filteredPosts = useMemo(() => {
+    if (!searchTerm.trim()) return posts;
+    const keyword = searchTerm.trim().toLowerCase();
+    return posts.filter((post) => post.title.toLowerCase().includes(keyword));
+  }, [posts, searchTerm]);
   const [settings, setSettings] = useState<BlogSettings>(defaultSettings);
   const [savingSettings, setSavingSettings] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
-  const [msg, setMsg] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -55,6 +66,11 @@ export default function AdminPage() {
     
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('mdblog_post_display_mode', settings.postDisplayMode);
+  }, [settings.postDisplayMode]);
 
   const fetchPosts = async () => {
     try {
@@ -104,7 +120,6 @@ export default function AdminPage() {
       } else {
         setMessage({ type: 'success', text: '设置已保存！' });
       }
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       setSavingSettings(false);
     } catch (e) {
       setMessage({ type: 'error', text: '保存失败' });
@@ -113,7 +128,12 @@ export default function AdminPage() {
   };
 
   // 上传文件
-  const [message, setMessage] = useState({ type: 'success', text: '' });
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: 'success', text: '' });
+  useEffect(() => {
+    if (!message.text) return;
+    const timer = setTimeout(() => setMessage({ type: '', text: '' }), 2800);
+    return () => clearTimeout(timer);
+  }, [message.text]);
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -129,7 +149,6 @@ export default function AdminPage() {
       if (res.ok) {
         await fetchPosts();
         setMessage({ type: 'success', text: '上传成功！' });
-        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       } else {
         const data = await res.json();
         setMessage({ type: 'error', text: data.error || '上传失败' });
@@ -153,7 +172,6 @@ export default function AdminPage() {
       a.click();
       URL.revokeObjectURL(url);
       setMessage({ type: 'success', text: '导出成功！' });
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (e) {
       setMessage({ type: 'error', text: '导出失败' });
     }
@@ -175,7 +193,6 @@ export default function AdminPage() {
       if (res.ok) {
         await fetchPosts();
         setMessage({ type: 'success', text: '导入成功！' });
-        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       } else {
         const data = await res.json();
         setMessage({ type: 'error', text: data.error || '导入失败' });
@@ -186,38 +203,63 @@ export default function AdminPage() {
     e.target.value = '';
   };
 
-  return (
-    <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8" style={{ fontSize: '125%' }}>
-      {/* 提示信息 */}
-      {message.text && (
-        <div className={`mb-3 rounded-lg px-4 py-2 text-sm ${
-          message.type === 'success' 
-            ? 'bg-green-50 text-green-600 dark:bg-green-900/30' 
-            : 'bg-red-50 text-red-600 dark:bg-red-900/30'
-        }`}>
-          {message.type === 'success' ? '✓' : '✗'} {message.text}
-        </div>
-      )}
+  const handleConfirmPassword = () => {
+    if (!newPassword && !confirmPassword) {
+      setMessage({ type: 'error', text: '请填写新密码后再确认' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: '两次输入的密码不一致' });
+      return;
+    }
+    setMessage({
+      type: 'success',
+      text: '已记录密码修改请求，请在服务器环境变量 ADMIN_PASSWORD 中同步更新。',
+    });
+    setNewPassword('');
+    setConfirmPassword('');
+  };
 
+  const handleLogoutSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (!window.confirm('确定退出登录吗？')) {
+      event.preventDefault();
+    }
+  };
+
+  return (
+    <>
+      <Head>
+        <title>博客后台管理</title>
+      </Head>
+      <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8" style={{ fontSize: '135%' }}>
       {/* 主要内容区：左侧文章列表 + 右侧设置 */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* 左侧：文章列表（占2栏） */}
         <div className="lg:col-span-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base font-bold text-slate-900 dark:text-white">📝 文章列表</h2>
-              <span className="text-xs text-slate-400">{posts.length} 篇</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">{posts.length} 篇</span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="搜索标题"
+                  className="w-40 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-700 outline-none transition focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
             </div>
 
             {loading ? (
               <div className="py-8 text-center text-xs text-slate-400">加载中...</div>
-            ) : posts.length === 0 ? (
+            ) : filteredPosts.length === 0 ? (
               <div className="py-8 text-center">
                 <p className="text-xs text-slate-400">暂无文章</p>
               </div>
             ) : (
               <div className="space-y-0.5">
-                {posts.map((post) => (
+                {filteredPosts.map((post) => (
                   <div
                     key={post.slug}
                     className="flex items-center gap-2 rounded-lg px-2 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -262,7 +304,7 @@ export default function AdminPage() {
                         ✏
                       </Link>
                       <Link
-                        href={`/posts/${post.slug}`}
+                        href={`/preview/${post.slug}`}
                         target="_blank"
                         className="rounded p-1.5 text-xs text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
                         title="预览"
@@ -296,7 +338,7 @@ export default function AdminPage() {
               >
                 返回前台
               </Link>
-              <form action={logoutAction}>
+              <form action={logoutAction} onSubmit={handleLogoutSubmit}>
                 <button
                   type="submit"
                   className="flex h-9 min-w-[100px] items-center justify-center rounded-full bg-slate-800 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
@@ -352,6 +394,20 @@ export default function AdminPage() {
                     {showPassword ? '🙈' : '👁'}
                   </button>
                 </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="重复输入新密码"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                />
+                <button
+                  type="button"
+                  onClick={handleConfirmPassword}
+                  className="w-full rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  确认修改
+                </button>
               </div>
 
               {/* 博客特色 */}
@@ -361,6 +417,17 @@ export default function AdminPage() {
                   type="text"
                   value={settings.heroBadge}
                   onChange={(e) => setSettings({ ...settings, heroBadge: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏠 博客名称</label>
+                <input
+                  type="text"
+                  value={settings.siteName}
+                  onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
+                  placeholder="MDBLOG"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
                 />
               </div>
@@ -455,6 +522,31 @@ export default function AdminPage() {
                 </select>
               </div>
 
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏠 首页文章展示</label>
+                <div className="flex gap-2">
+                  {(
+                    ['card', 'list'] as const
+                  ).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setSettings({ ...settings, postDisplayMode: mode })}
+                      className={`flex-1 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                        settings.postDisplayMode === mode
+                          ? 'border-brand-600 bg-brand-600 text-white'
+                          : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      {mode === 'card' ? '卡片式' : '列表式'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400">
+                  列表式将首页文章以简洁标题 + 时间 / 展示，不渲染封面卡片。
+                </p>
+              </div>
+
               {/* 保存按钮 */}
               <button
                 onClick={saveSettings}
@@ -467,6 +559,18 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      {message.text && (
+        <div
+          className={`fixed top-6 right-6 z-50 max-w-sm rounded-lg px-4 py-3 text-sm shadow-lg transition-all ${
+            message.type === 'success'
+              ? 'bg-green-50 text-green-600 dark:bg-green-900/80 dark:text-green-200'
+              : 'bg-red-50 text-red-600 dark:bg-red-900/80 dark:text-red-200'
+          }`}
+        >
+          {message.type === 'success' ? '✓' : '✗'} {message.text}
+        </div>
+      )}
     </section>
+    </>
   );
 }

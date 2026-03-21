@@ -2,27 +2,22 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { TableOfContents } from '@/components/toc';
-import { getPostBySlug, getPublishedPosts } from '@/lib/blog';
+import { getPostBySlugIncludeDrafts } from '@/lib/blog';
 import { formatDate, estimateReadTime } from '@/lib/utils';
-
-export async function generateStaticParams() {
-  const posts = await getPublishedPosts();
-  return posts.map((post) => ({ slug: post.slug }));
-}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = await getPostBySlug(slug);
+  const post = await getPostBySlugIncludeDrafts(slug);
 
   if (!post) {
     return { title: '文章不存在' };
   }
 
   return {
-    title: post.title,
+    title: `[预览] ${post.title}`,
     description: post.excerpt,
     openGraph: {
-      title: post.title,
+      title: `[预览] ${post.title}`,
       description: post.excerpt,
       type: 'article',
       publishedTime: post.published_at,
@@ -32,9 +27,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function PostDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PreviewPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = await getPostBySlug(slug);
+  const post = await getPostBySlugIncludeDrafts(slug);
 
   if (!post) {
     notFound();
@@ -79,12 +74,7 @@ export default async function PostDetailPage({ params }: { params: Promise<{ slu
 
           {post.cover_image ? (
             <div className="mt-6 overflow-hidden rounded-3xl bg-slate-100">
-              <img
-                src={post.cover_image}
-                alt={`${post.title} 封面`}
-                loading="lazy"
-                className="h-72 w-full object-cover"
-              />
+              <img src={post.cover_image} alt={`${post.title} 封面`} loading="lazy" className="h-72 w-full object-cover" />
             </div>
           ) : null}
 

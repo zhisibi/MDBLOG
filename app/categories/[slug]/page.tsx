@@ -3,11 +3,20 @@ import { EmptyState } from '@/components/empty-state';
 import { PostCard } from '@/components/post-card';
 import { getCategories, getPostsByCategory } from '@/lib/blog';
 
+const decodeParam = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 // 移除 generateStaticParams，使用动态路由
 export const dynamicParams = true;
 
 export default async function CategoryDetailPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeParam(rawSlug);
   
   const categories = await getCategories();
   const category = categories.find((item) => item.slug === slug);

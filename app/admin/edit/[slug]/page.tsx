@@ -100,7 +100,7 @@ export default function AdminEditPostPage({ params }: { params: Promise<{ slug: 
         <div className="flex items-center gap-2">
           <Link href="/admin" className="px-2 text-xs text-slate-500 hover:text-slate-700">← 返回</Link>
           <span className="text-slate-300">|</span>
-          <Link href={`/posts/${slug}`} target="_blank" className="px-2 text-xs text-slate-500 hover:text-slate-700">预览</Link>
+          <Link href={`/preview/${slug}`} target="_blank" className="px-2 text-xs text-slate-500 hover:text-slate-700">预览</Link>
         </div>
         
         {/* 右侧醒目保存按钮 */}

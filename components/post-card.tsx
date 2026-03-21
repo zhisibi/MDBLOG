@@ -5,6 +5,17 @@ import { formatDate, estimateReadTime } from '@/lib/utils';
 export function PostCard({ post }: { post: PostRecord }) {
   return (
     <article className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-slate-800 dark:bg-slate-900">
+      {post.cover_image ? (
+        <div className="mb-5 overflow-hidden rounded-2xl bg-slate-100">
+          <img
+            src={post.cover_image}
+            alt={`${post.title} 封面`}
+            loading="lazy"
+            className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
         <span>{formatDate(post.published_at)}</span>
         <span>·</span>

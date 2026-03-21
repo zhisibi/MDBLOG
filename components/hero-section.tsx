@@ -31,10 +31,8 @@ interface HeroSectionProps {
 
 export function HeroSection({ postsCount, categoriesCount, tagsCount }: HeroSectionProps) {
   const [settings, setSettings] = useState<BlogSettings>(defaultSettings);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const saved = localStorage.getItem('mdblog_settings');
     if (saved) {
       try {
@@ -45,75 +43,35 @@ export function HeroSection({ postsCount, categoriesCount, tagsCount }: HeroSect
     }
   }, []);
 
-  // 构建背景样式
-  const getBackgroundStyle = () => {
-    const style: React.CSSProperties = {};
-    
-    if (settings.backgroundImage) {
-      style.backgroundImage = `url(${settings.backgroundImage})`;
-      style.backgroundSize = 'cover';
-      style.backgroundPosition = 'center';
-    }
-    
-    return style;
-  };
-
-  // 构建渐变类名
-  const getGradientClass = () => {
-    if (settings.backgroundImage) return '';
-    return settings.heroBgGradient || '';
-  };
-
-  if (!mounted) {
-    return (
-      <section className="grid gap-8 rounded-[2rem] bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 px-6 py-10 shadow-soft md:grid-cols-[2fr_1fr] md:px-10">
-        <div>
-          <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-1 text-sm backdrop-blur">
-            {defaultSettings.heroBadge}
-          </span>
-          <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl text-white">
-            {defaultSettings.heroTitle}
-          </h1>
-          <p className="mt-5 max-w-2xl text-base leading-8 text-slate-200 sm:text-lg">
-            {defaultSettings.heroDescription}
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="#latest-posts" className="rounded-full bg-white px-5 py-3 font-semibold text-slate-900">查看最新文章</Link>
-            <Link href="/categories" className="rounded-full border border-white/20 px-5 py-3 font-semibold text-white">浏览分类</Link>
-          </div>
-        </div>
-        <ContentOverview postsCount={postsCount} categoriesCount={categoriesCount} tagsCount={tagsCount} />
-      </section>
-    );
-  }
-
   return (
     <section
-      className={`grid gap-8 rounded-[2rem] px-6 py-10 shadow-soft md:grid-cols-[2fr_1fr] md:px-10 ${getGradientClass()}`}
-      style={{ 
-        backgroundColor: settings.backgroundImage ? 'rgba(0,0,0,0.6)' : settings.heroBgColor,
-        ...getBackgroundStyle()
-      }}
+      className="grid min-h-[220px] md:min-h-[240px] md:grid-cols-[2fr_1fr] gap-6 rounded-[1.5rem] bg-gradient-to-br from-[#0f172a] via-[#0c1b43] to-[#07112a] px-5 py-5 shadow-[0_10px_40px_rgba(15,23,42,0.4)]"
     >
-      <div>
-        <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-1 text-sm backdrop-blur">
-          {settings.heroBadge}
-        </span>
-        <h1 
-          className="mt-5 text-4xl font-black tracking-tight sm:text-5xl"
-          style={{ color: settings.heroTextColor }}
-        >
-          {settings.heroTitle}
-        </h1>
-        <p 
-          className="mt-5 max-w-2xl text-base leading-8 sm:text-lg"
-          style={{ color: settings.heroTextColor === '#ffffff' ? '#e2e8f0' : settings.heroTextColor }}
-        >
-          {settings.heroDescription}
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="#latest-posts" className="rounded-full bg-white px-5 py-3 font-semibold text-slate-900">查看最新文章</Link>
-          <Link href="/categories" className="rounded-full border border-white/20 px-5 py-3 font-semibold text-white">浏览分类</Link>
+      <div className="flex flex-col justify-between">
+        <div>
+          <span className="inline-flex rounded-[999px] border border-white/30 bg-white/10 px-3 py-0.5 text-[11px] tracking-[0.3em] text-white/80">
+            {settings.heroBadge}
+          </span>
+          <h1 className="mt-3 text-4xl font-black leading-tight tracking-tight text-white sm:text-5xl">
+            {settings.heroTitle}
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-white/70 sm:text-base">
+            {settings.heroDescription}
+          </p>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="#latest-posts"
+            className="flex h-10 min-w-[140px] items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 shadow-[0_10px_20px_rgba(15,23,42,0.3)] transition hover:-translate-y-0.5"
+          >
+            查看最新文章
+          </Link>
+          <Link
+            href="/categories"
+            className="flex h-10 min-w-[140px] items-center justify-center rounded-full border border-white/30 px-5 py-2 text-sm font-semibold text-white/90 transition hover:border-white hover:text-white"
+          >
+            浏览分类
+          </Link>
         </div>
       </div>
       <ContentOverview postsCount={postsCount} categoriesCount={categoriesCount} tagsCount={tagsCount} />
@@ -123,22 +81,28 @@ export function HeroSection({ postsCount, categoriesCount, tagsCount }: HeroSect
 
 function ContentOverview({ postsCount, categoriesCount, tagsCount }: { postsCount: number; categoriesCount: number; tagsCount: number }) {
   return (
-    <div className="rounded-[1.5rem] bg-white/10 p-6 backdrop-blur">
-      <h2 className="text-lg font-bold text-white">内容概览</h2>
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
-        <div className="rounded-2xl bg-white/10 p-4">
-          <dt className="text-slate-300">文章</dt>
-          <dd className="mt-2 text-3xl font-black text-white">{postsCount}</dd>
+    <div className="rounded-[1.25rem] bg-white/10 p-3 backdrop-blur flex flex-col justify-center gap-3">
+      <dl className="grid grid-cols-2 gap-8 text-[11px] place-content-center">
+        <div className="rounded-2xl bg-white/10 p-2 flex flex-col justify-between">
+          <dt className="text-white/70 text-[10px]">文章</dt>
+          <dd className="mt-1 text-lg font-black text-white">{postsCount}</dd>
         </div>
-        <div className="rounded-2xl bg-white/10 p-4">
-          <dt className="text-slate-300">分类</dt>
-          <dd className="mt-2 text-3xl font-black text-white">{categoriesCount}</dd>
+        <div className="rounded-2xl bg-white/10 p-2 flex flex-col justify-between">
+          <dt className="text-white/70 text-[10px]">分类</dt>
+          <dd className="mt-1 text-lg font-black text-white">{categoriesCount}</dd>
         </div>
-        <div className="rounded-2xl bg-white/10 p-4 col-span-2">
-          <dt className="text-slate-300">标签</dt>
-          <dd className="mt-2 text-3xl font-black text-white">{tagsCount}</dd>
+        <div className="rounded-2xl bg-white/10 p-2 col-span-2 flex flex-col justify-between pt-3">
+          <dt className="text-white/70 text-[10px]">标签</dt>
+          <dd className="mt-1 text-lg font-black text-white">{tagsCount}</dd>
         </div>
       </dl>
+      <div className="mt-4">
+        <input
+          type="text"
+          placeholder="请输入关键字搜索"
+          className="w-full rounded-full border border-white/30 bg-white/10 px-3 py-2 text-xs tracking-[0.2em] text-white placeholder-white/60 shadow-[0_5px_15px_rgba(15,23,42,0.3)] focus:border-white focus:bg-white/20 focus:outline-none"
+        />
+      </div>
     </div>
   );
 }

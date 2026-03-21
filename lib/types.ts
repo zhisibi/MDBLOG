@@ -23,4 +23,5 @@ export type PostRecord = {
   published_at: string | null;
   category: Category | null;
   tags: Tag[];
+  fileName: string;
 };
