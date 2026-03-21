@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-200;
+  background-color: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
+.dark body {
+  background-color: rgb(2 6 23);
+  color: rgb(248 250 252);
+}
+
+/* ── Prose Custom Light ─────────────────────────────────────── */
+.prose-custom {
+  @apply max-w-none leading-8;
+  color: rgb(51 65 85);
+}
+
+.prose-custom h1,
+.prose-custom h2,
+.prose-custom h3,
+.prose-custom h4 {
+  @apply scroll-mt-24 font-bold;
+  color: rgb(15 23 42);
+}
+
+.prose-custom h1 {
+  @apply mt-10 text-4xl;
+}
+
+.prose-custom h2 {
+  @apply mt-10 text-3xl;
+}
+
+.prose-custom h3 {
+  @apply mt-8 text-2xl;
+}
+
+.prose-custom p {
+  @apply my-5;
+}
+
+.prose-custom ul {
+  @apply my-5 list-disc pl-6;
+}
+
+.prose-custom ol {
+  @apply my-5 list-decimal pl-6;
+}
+
+.prose-custom li {
+  @apply my-2;
+}
+
+.prose-custom a {
+  @apply text-blue-600 underline decoration-blue-100 underline-offset-4 transition;
+}
+
+.prose-custom blockquote {
+  @apply my-6 border-l-4 border-blue-500 px-5 py-3 shadow-sm;
+  background-color: rgb(255 255 255);
+  color: rgb(71 85 105);
+}
+
+.prose-custom code {
+  @apply rounded px-1.5 py-0.5 text-sm;
+  background-color: rgb(241 245 249);
+  color: rgb(15 23 42);
+}
+
+.prose-custom pre {
+  @apply my-6 overflow-x-auto rounded-2xl p-5;
+  background-color: rgb(3 7 18);
+  color: rgb(248 250 252);
+}
+
+.prose-custom pre code {
+  @apply p-0;
+  background-color: transparent !important;
+  color: inherit;
+}
+
+.prose-custom img {
+  @apply my-6 rounded-2xl;
+}
+
+.prose-custom hr {
+  @apply my-8;
+  border-color: rgb(226 232 240);
+}
+
+/* ── Prose Custom Dark ──────────────────────────────────────── */
+.dark .prose-custom {
+  color: rgb(203 213 225);
+}
+
+.dark .prose-custom h1,
+.dark .prose-custom h2,
+.dark .prose-custom h3,
+.dark .prose-custom h4 {
+  color: rgb(248 250 252);
+}
+
+.dark .prose-custom a {
+  color: rgb(96 165 250);
+}
+
+.dark .prose-custom blockquote {
+  background-color: rgb(15 23 42);
+  color: rgb(148 163 184);
+  border-color: rgb(59 130 246);
+}
+
+.dark .prose-custom code {
+  background-color: rgb(30 41 59);
+  color: rgb(226 232 240);
+}
+
+.dark .prose-custom hr {
+  border-color: rgb(30 41 59);
+}
+
+/* ── Shiki Code Highlight ───────────────────────────────────── */
+.shiki {
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 1.25rem 1.5rem;
+  background-color: transparent !important;
+  color: rgb(248 250 252) !important;
+}
+
+.shiki code,
+.shiki span {
+  background-color: transparent !important;
+}
+
+/* ── Theme Toggle Button ────────────────────────────────────── */
+.theme-toggle {
+  @apply relative h-5 w-10 rounded-full transition-colors;
+  background-color: rgb(226 232 240);
+}
+
+.dark .theme-toggle {
+  background-color: rgb(51 65 85);
+}
+
+.theme-toggle::after {
+  content: '';
+  @apply absolute left-0.5 top-0.5 h-4 w-4 rounded-full shadow transition-transform;
+  background-color: white;
+}
+
+.dark .theme-toggle::after {
+  transform: translateX(1.25rem);
+}
