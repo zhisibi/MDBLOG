@@ -7,6 +7,10 @@ function sha256(value: string) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+export function hashPassword(value: string) {
+  return sha256(value);
+}
+
 function getPasswordHash() {
   const plain = process.env.ADMIN_PASSWORD;
   const hashed = process.env.ADMIN_PASSWORD_HASH;
@@ -27,7 +31,7 @@ function signSession() {
 
 export function verifyPassword(input: string) {
   const expected = Buffer.from(getPasswordHash());
-  const actual = Buffer.from(sha256(input));
+  const actual = Buffer.from(hashPassword(input));
 
   if (expected.length !== actual.length) return false;
   return timingSafeEqual(expected, actual);

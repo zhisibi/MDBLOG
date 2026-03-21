@@ -26,6 +26,8 @@ interface BlogSettings {
   heroBgGradient: string;
   heroBadge: string;
   backgroundImage: string;
+  globalBackgroundColor: string;
+  globalBackgroundImage: string;
   postDisplayMode: 'card' | 'list';
 }
 
@@ -38,6 +40,8 @@ const defaultSettings: BlogSettings = {
   heroBgGradient: 'from-slate-900 via-slate-800 to-brand-900',
   heroBadge: 'Markdown · 响应式 · 暗黑模式',
   backgroundImage: '',
+  globalBackgroundColor: '#f8fafc',
+  globalBackgroundImage: '',
   postDisplayMode: 'card',
 };
 
@@ -53,8 +57,10 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<BlogSettings>(defaultSettings);
   const [savingSettings, setSavingSettings] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -114,12 +120,7 @@ export default function AdminPage() {
     setSavingSettings(true);
     try {
       localStorage.setItem('mdblog_settings', JSON.stringify(settings));
-      
-      if (newPassword) {
-        setMessage({ type: 'success', text: '设置已保存！密码修改需在服务器环境变量中设置 ADMIN_PASSWORD' });
-      } else {
-        setMessage({ type: 'success', text: '设置已保存！' });
-      }
+      setMessage({ type: 'success', text: '设置已保存！' });
       setSavingSettings(false);
     } catch (e) {
       setMessage({ type: 'error', text: '保存失败' });
@@ -203,21 +204,47 @@ export default function AdminPage() {
     e.target.value = '';
   };
 
-  const handleConfirmPassword = () => {
-    if (!newPassword && !confirmPassword) {
-      setMessage({ type: 'error', text: '请填写新密码后再确认' });
+  const handlePasswordChange = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setMessage({ type: 'error', text: '请填写当前密码与新密码' });
       return;
     }
+
     if (newPassword !== confirmPassword) {
       setMessage({ type: 'error', text: '两次输入的密码不一致' });
       return;
     }
-    setMessage({
-      type: 'success',
-      text: '已记录密码修改请求，请在服务器环境变量 ADMIN_PASSWORD 中同步更新。',
-    });
-    setNewPassword('');
-    setConfirmPassword('');
+
+    if (newPassword.length < 8) {
+      setMessage({ type: 'error', text: '新密码需要至少 8 位' });
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const response = await fetch('/api/admin/password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const payload = (await response.json().catch(() => ({} as Record<string, string>))) || {};
+
+      if (!response.ok) {
+        throw new Error(payload.error || '密码更新失败');
+      }
+
+      setMessage({ type: 'success', text: payload.message || '密码已更新！' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : '密码更新失败' });
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   const handleLogoutSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -231,7 +258,7 @@ export default function AdminPage() {
       <Head>
         <title>博客后台管理</title>
       </Head>
-      <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8" style={{ fontSize: '135%' }}>
+      <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 text-lg sm:text-xl" style={{ fontSize: '135%' }}>
       {/* 主要内容区：左侧文章列表 + 右侧设置 */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* 左侧：文章列表（占2栏） */}
@@ -378,12 +405,19 @@ export default function AdminPage() {
               {/* 修改密码 */}
               <div className="space-y-1">
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🔐 密码</label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="当前密码"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                />
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="新密码"
+                    placeholder="新密码（至少8位）"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
                   />
                   <button
@@ -403,11 +437,15 @@ export default function AdminPage() {
                 />
                 <button
                   type="button"
-                  onClick={handleConfirmPassword}
-                  className="w-full rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  onClick={handlePasswordChange}
+                  disabled={passwordSaving}
+                  className="w-full rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  确认修改
+                  {passwordSaving ? '更新中...' : '确认修改'}
                 </button>
+                <p className="text-xs text-slate-400">
+                  新密码会加密写入 <code>.env.local</code>（或 <code>.env</code>），更新后可立即登录。
+                </p>
               </div>
 
               {/* 博客特色 */}
@@ -456,7 +494,7 @@ export default function AdminPage() {
 
               {/* 背景图片 */}
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🖼️ 背景图</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🖼️ hero 背景图</label>
                 <input
                   type="text"
                   value={settings.backgroundImage}
@@ -464,6 +502,61 @@ export default function AdminPage() {
                   placeholder="图片 URL"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🌌 全局背景图</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={settings.globalBackgroundImage}
+                    onChange={(e) => setSettings({ ...settings, globalBackgroundImage: e.target.value })}
+                    placeholder="背景图 URL"
+                    className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, globalBackgroundImage: defaultSettings.globalBackgroundImage })}
+                    className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-600 hover:text-brand-600 dark:border-slate-700 dark:text-slate-300"
+                  >
+                    重置
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 hero 背景色</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={settings.heroBgColor}
+                      onChange={(e) => setSettings({ ...settings, heroBgColor: e.target.value })}
+                      className="h-8 w-10 cursor-pointer rounded border border-slate-200"
+                    />
+                    <input
+                      type="text"
+                      value={settings.heroBgColor}
+                      onChange={(e) => setSettings({ ...settings, heroBgColor: e.target.value })}
+                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 hero 文字色</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={settings.heroTextColor}
+                      onChange={(e) => setSettings({ ...settings, heroTextColor: e.target.value })}
+                      className="h-8 w-10 cursor-pointer rounded border border-slate-200"
+                    />
+                    <input
+                      type="text"
+                      value={settings.heroTextColor}
+                      onChange={(e) => setSettings({ ...settings, heroTextColor: e.target.value })}
+                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* 颜色设置 */}
