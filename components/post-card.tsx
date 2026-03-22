@@ -1,56 +1,45 @@
 import Link from 'next/link';
 import type { PostRecord } from '@/lib/types';
-import { formatDate, estimateReadTime } from '@/lib/utils';
 
 export function PostCard({ post }: { post: PostRecord }) {
+  const hasCover = Boolean(post.cover_image);
+
   return (
-    <article className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-slate-800 dark:bg-slate-900">
-      {post.cover_image ? (
-        <div className="mb-5 overflow-hidden rounded-2xl bg-slate-100">
+    <article className="group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-slate-800 dark:bg-slate-900">
+      <div className="relative mb-4 h-56 overflow-hidden rounded-3xl border-b border-slate-200 bg-slate-900 dark:border-slate-800">
+        {hasCover ? (
           <img
-            src={post.cover_image}
+            src={post.cover_image || ''}
             alt={`${post.title} 封面`}
             loading="lazy"
-            className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-        <span>{formatDate(post.published_at)}</span>
-        <span>·</span>
-        <span>{estimateReadTime(post.content)} 分钟</span>
-        {post.category ? (
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div className="relative z-10 flex h-full flex-col justify-end px-6 pb-6">
           <Link
-            href={`/categories/${post.category.slug}`}
-            className="rounded-full bg-brand-50 px-3 py-1 font-medium text-brand-600 dark:bg-brand-950 dark:text-brand-400"
+            href={`/posts/${post.slug}`}
+            className="text-3xl font-black leading-tight text-white drop-shadow-lg transition group-hover:text-brand-200"
           >
-            {post.category.name}
+            {post.title}
           </Link>
-        ) : null}
+        </div>
       </div>
 
-      <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-        <Link
-          href={`/posts/${post.slug}`}
-          className="transition group-hover:text-brand-600 dark:group-hover:text-brand-400"
-        >
-          {post.title}
-        </Link>
-      </h2>
-
-      <p className="mt-3 text-base leading-7 text-slate-600 dark:text-slate-300">{post.excerpt}</p>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {post.tags.map((tag) => (
-          <Link
-            key={tag.id}
-            href={`/tags/${tag.slug}`}
-            className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-600 transition hover:border-brand-200 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-brand-700 dark:hover:text-brand-400"
-          >
-            #{tag.name}
-          </Link>
-        ))}
+      <div className="px-6 pb-2.5">
+        <div className="flex flex-wrap gap-1">
+          {post.tags.map((tag) => (
+            <Link
+              key={tag.id}
+              href={`/tags/${tag.slug}`}
+              className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-600 transition hover:border-brand-200 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-brand-700 dark:hover:text-brand-400"
+            >
+              #{tag.name}
+            </Link>
+          ))}
+        </div>
       </div>
     </article>
   );

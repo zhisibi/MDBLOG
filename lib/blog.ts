@@ -17,6 +17,13 @@ type Frontmatter = {
   cover_image?: string | null;
 };
 
+function normalizeField(value?: string | null) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'null') return '';
+  return trimmed;
+}
+
 function slugify(value: string) {
   if (value && value.trim()) {
     const slug = value
@@ -119,27 +126,28 @@ async function readPostFiles() {
 function normalizePost(fileName: string, source: string): PostRecord {
   const { frontmatter, content } = parseFrontmatter(source);
   const fileSlug = fileName.replace(/\.md$/i, '');
-  const title = frontmatter.title?.trim() || fileSlug;
-  const slug = slugify(frontmatter.slug || fileSlug);
-  const categoryName = frontmatter.category?.trim() || '未分类';
+  const title = normalizeField(frontmatter.title) || fileSlug;
+  const slug = slugify(normalizeField(frontmatter.slug) || fileSlug);
+  const categoryName = normalizeField(frontmatter.category) || '未分类';
   const categorySlug = slugify(categoryName);
-  const tags = (frontmatter.tags ?? []).map((tag) => {
-    const name = tag.trim();
-    return {
+  const tags = (frontmatter.tags ?? [])
+    .map((tag) => normalizeField(tag))
+    .filter(Boolean)
+    .map((name) => ({
       id: slugify(name),
       name,
       slug: slugify(name),
-    } as Tag;
-  });
-  const publishedAt = frontmatter.published_at || new Date().toISOString();
+    } as Tag));
+  const publishedAt = normalizeField(frontmatter.published_at ?? undefined) || new Date().toISOString();
+  const coverImage = normalizeField(frontmatter.cover_image);
 
   return {
     id: slug,
     title,
     slug,
-    excerpt: frontmatter.excerpt?.trim() || content.slice(0, 120).replace(/\s+/g, ' ').trim(),
+    excerpt: normalizeField(frontmatter.excerpt) || content.slice(0, 120).replace(/\s+/g, ' ').trim(),
     content,
-    cover_image: frontmatter.cover_image ?? null,
+    cover_image: coverImage || null,
     status: frontmatter.status === 'draft' ? 'draft' : 'published',
     created_at: publishedAt,
     updated_at: publishedAt,

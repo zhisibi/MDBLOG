@@ -135,6 +135,17 @@ ADMIN_PASSWORD_HASH=your-hashed-password  # 可选，优先使用
 - ✨ 新增阅读时间统计
 - 🎨 优化所有页面的暗黑模式适配
 
+### v0.3.0 (2026-03-22)
+
+- 🔐 加固后台管理：所有 API 统一走 `requireApiAuth`、文件上传/导入限制扩展名和大小、前端 fetch 强制 `credentials: 'same-origin'`。
+- 🛡️ 增加 CSP/HSTS 等安全头、率限制和集中日志，详细分析写入 `docs/security-analysis.md`。
+- 🧭 理顺 TOTP 并开通管理界面：QR 生成、启用/关闭、登录 OTP 验证、忘记密码可用 OTP 重置。
+- 💾 密码机制统一落到 `.env.local` 的 `ADMIN_PASSWORD_HASH` 并记录日志，还新增 `lib/password-utils.ts` 供 API 重用。
+- 🎛️ 后台设置面板改为按钮 + 弹窗，支持默认封面 URL，并让新建文章页自动填入本地配置。
+- 🧱 首页文章列表加入背景容器 + 统一卡片风格，移动端换行和触控体验全面升级。
+- 🕹️ 首页右上角新增归档筛选 + 布局开关，卡片/列表模式可即时切换并记忆到 `localStorage`。
+- 📱 移动端列表样式优化：列表模式下自动换行、时间显示在标题下方，适配小屏幕。
+
 ### v0.1.0
 
 - 初始版本

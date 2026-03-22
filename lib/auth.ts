@@ -3,12 +3,8 @@ import { createHash, timingSafeEqual } from 'crypto';
 
 const AUTH_COOKIE = 'mdblog_admin_session';
 
-function sha256(value: string) {
-  return createHash('sha256').update(value).digest('hex');
-}
-
 export function hashPassword(value: string) {
-  return sha256(value);
+  return createHash('sha256').update(value).digest('hex');
 }
 
 function getPasswordHash() {
@@ -16,9 +12,9 @@ function getPasswordHash() {
   const hashed = process.env.ADMIN_PASSWORD_HASH;
 
   if (hashed) return hashed;
-  if (plain) return sha256(plain);
+  if (plain) return hashPassword(plain);
 
-  return sha256('admin123456');
+  return hashPassword('admin123456');
 }
 
 function getSessionSecret() {
@@ -26,7 +22,7 @@ function getSessionSecret() {
 }
 
 function signSession() {
-  return sha256(`${getSessionSecret()}:logged-in`);
+  return hashPassword(`${getSessionSecret()}:logged-in`);
 }
 
 export function verifyPassword(input: string) {

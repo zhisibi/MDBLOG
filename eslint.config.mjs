@@ -1,3 +1,6 @@
-import nextVitals from 'eslint-config-next/core-web-vitals.js';
+import { FlatCompat } from '@eslint/eslintrc';
+import { fileURLToPath } from 'node:url';
 
-export default nextVitals;
+const compat = new FlatCompat({ baseDirectory: fileURLToPath(new URL('.', import.meta.url)) });
+
+export default compat.extends('next/core-web-vitals');

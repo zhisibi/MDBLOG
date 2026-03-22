@@ -29,6 +29,7 @@ interface BlogSettings {
   globalBackgroundColor: string;
   globalBackgroundImage: string;
   postDisplayMode: 'card' | 'list';
+  defaultCoverImage: string;
 }
 
 const defaultSettings: BlogSettings = {
@@ -43,6 +44,7 @@ const defaultSettings: BlogSettings = {
   globalBackgroundColor: '#f8fafc',
   globalBackgroundImage: '',
   postDisplayMode: 'card',
+  defaultCoverImage: '',
 };
 
 export default function AdminPage() {
@@ -55,12 +57,19 @@ export default function AdminPage() {
     return posts.filter((post) => post.title.toLowerCase().includes(keyword));
   }, [posts, searchTerm]);
   const [settings, setSettings] = useState<BlogSettings>(defaultSettings);
+  const [customSettings, setCustomSettings] = useState<BlogSettings>(defaultSettings);
+  const [activeModal, setActiveModal] = useState<'password' | 'totp' | 'custom' | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [totpStatus, setTotpStatus] = useState<{ enabled: boolean } | null>(null);
+  const [totpSetup, setTotpSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [totpEnableToken, setTotpEnableToken] = useState('');
+  const [totpDisableToken, setTotpDisableToken] = useState('');
+  const [totpLoading, setTotpLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,6 +86,16 @@ export default function AdminPage() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('mdblog_post_display_mode', settings.postDisplayMode);
   }, [settings.postDisplayMode]);
+
+  useEffect(() => {
+    if (activeModal === 'custom') {
+      setCustomSettings(settings);
+    }
+  }, [activeModal, settings]);
+
+  useEffect(() => {
+    fetchTotpStatus();
+  }, []);
 
   const fetchPosts = async () => {
     try {
@@ -105,25 +124,48 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  const fetchTotpStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/totp', { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error('无法获取二步验证状态');
+      }
+      const data = await res.json();
+      setTotpStatus({ enabled: Boolean(data.enabled) });
+    } catch (e) {
+      console.error('Failed to fetch totp status', e);
+      setTotpStatus({ enabled: false });
+    }
+  };
+
   const loadSettings = () => {
     try {
       const saved = localStorage.getItem('mdblog_settings');
       if (saved) {
-        setSettings({ ...defaultSettings, ...JSON.parse(saved) });
+        const merged = { ...defaultSettings, ...JSON.parse(saved) };
+        setSettings(merged);
+        setCustomSettings(merged);
+      } else {
+        setSettings(defaultSettings);
+        setCustomSettings(defaultSettings);
       }
     } catch (e) {
       console.error('Failed to load settings', e);
     }
   };
 
-  const saveSettings = () => {
+  const saveSettings = (next?: BlogSettings) => {
     setSavingSettings(true);
     try {
-      localStorage.setItem('mdblog_settings', JSON.stringify(settings));
+      const merged = next ?? customSettings;
+      localStorage.setItem('mdblog_settings', JSON.stringify(merged));
+      setSettings(merged);
+      setCustomSettings(merged);
+      setActiveModal(null);
       setMessage({ type: 'success', text: '设置已保存！' });
-      setSavingSettings(false);
     } catch (e) {
       setMessage({ type: 'error', text: '保存失败' });
+    } finally {
       setSavingSettings(false);
     }
   };
@@ -247,6 +289,93 @@ export default function AdminPage() {
     }
   };
 
+  const handleTotpPrepare = async () => {
+    setTotpLoading(true);
+    try {
+      const res = await fetch('/api/admin/totp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'prepare' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '生成二维码失败');
+      }
+      setTotpSetup({ secret: data.secret, otpauthUrl: data.otpauthUrl });
+      setTotpEnableToken('');
+      setMessage({ type: 'success', text: '二维码已生成' });
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : '生成二维码失败' });
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleTotpEnable = async () => {
+    if (!totpSetup?.secret) {
+      setMessage({ type: 'error', text: '请先生成二维码' });
+      return;
+    }
+    if (!totpEnableToken.trim()) {
+      setMessage({ type: 'error', text: '请输入 6 位验证码' });
+      return;
+    }
+
+    setTotpLoading(true);
+    try {
+      const res = await fetch('/api/admin/totp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'enable', secret: totpSetup.secret, token: totpEnableToken.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '启用失败');
+      }
+      setMessage({ type: 'success', text: data.message || '二步验证已启用' });
+      setTotpSetup(null);
+      setTotpEnableToken('');
+      await fetchTotpStatus();
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : '启用失败' });
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleTotpDisable = async () => {
+    if (!totpDisableToken.trim()) {
+      setMessage({ type: 'error', text: '请输入当前验证码' });
+      return;
+    }
+    setTotpLoading(true);
+    try {
+      const res = await fetch('/api/admin/totp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'disable', token: totpDisableToken.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '关闭失败');
+      }
+      setMessage({ type: 'success', text: data.message || '二步验证已关闭' });
+      setTotpDisableToken('');
+      setTotpSetup(null);
+      await fetchTotpStatus();
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : '关闭失败' });
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
   const handleLogoutSubmit = (event: FormEvent<HTMLFormElement>) => {
     if (!window.confirm('确定退出登录吗？')) {
       event.preventDefault();
@@ -285,47 +414,45 @@ export default function AdminPage() {
                 <p className="text-xs text-slate-400">暂无文章</p>
               </div>
             ) : (
-              <div className="space-y-0.5">
+              <div className="space-y-2">
                 {filteredPosts.map((post) => (
                   <div
                     key={post.slug}
-                    className="flex items-center gap-2 rounded-lg px-2 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                    className="flex flex-col gap-3 rounded-xl border border-transparent px-3 py-3 transition hover:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 sm:flex-row sm:items-center"
                   >
                     {/* 标题、分类、时间 - 可点击跳转编辑 */}
-                    <Link href={`/admin/edit/${post.slug}`} className="min-w-0 flex-1 hover:opacity-80">
-                      <div className="flex items-center gap-2">
+                    <Link href={`/admin/edit/${post.slug}`} className="min-w-0 flex-1 hover:opacity-90">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug break-words sm:truncate">
+                        {post.title}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                         <span
                           className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                             post.status === 'published'
-                              ? 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
-                              : 'bg-slate-100 text-slate-400 dark:bg-slate-800'
+                              ? 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
                           }`}
                         >
                           {post.status === 'published' ? '已发布' : '草稿'}
                         </span>
-                        <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
-                          {post.title}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
                         <span>{post.category?.name ?? '未分类'}</span>
-                        <span>·</span>
+                        <span className="text-slate-300">·</span>
                         <span>{post.published_at ? new Date(post.published_at).toLocaleDateString('zh-CN') : ''}</span>
                       </div>
                     </Link>
 
                     {/* 操作按钮 */}
-                    <div className="flex shrink-0 items-center gap-0.5">
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs text-slate-400 sm:flex-nowrap sm:justify-end">
                       <a
                         href={`/api/admin/download/${post.slug}`}
-                        className="rounded p-1.5 text-xs text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                         title="下载"
                       >
                         ⬇
                       </a>
                       <Link
                         href={`/admin/edit/${post.slug}`}
-                        className="rounded p-1.5 text-xs text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                         title="编辑"
                       >
                         ✏
@@ -333,7 +460,7 @@ export default function AdminPage() {
                       <Link
                         href={`/preview/${post.slug}`}
                         target="_blank"
-                        className="rounded p-1.5 text-xs text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                         title="预览"
                       >
                         👁
@@ -397,261 +524,377 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* 博客设置卡片 */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-center text-base font-bold text-slate-900 dark:text-white">🎨 博客设置</h2>
-
+          {/* 设置入口卡片 */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="mb-3 text-center text-base font-bold text-slate-900 dark:text-white">🎛️ 设置面板</h2>
+            <p className="mb-4 text-center text-xs text-slate-500 dark:text-slate-400">功能拆分为弹窗，避免卡片过长、滚动不便。</p>
             <div className="space-y-3">
-              {/* 修改密码 */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🔐 密码</label>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="当前密码"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="新密码（至少8位）"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400"
-                  >
-                    {showPassword ? '🙈' : '👁'}
-                  </button>
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="重复输入新密码"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-                <button
-                  type="button"
-                  onClick={handlePasswordChange}
-                  disabled={passwordSaving}
-                  className="w-full rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  {passwordSaving ? '更新中...' : '确认修改'}
-                </button>
-                <p className="text-xs text-slate-400">
-                  新密码会加密写入 <code>.env.local</code>（或 <code>.env</code>），更新后可立即登录。
-                </p>
-              </div>
-
-              {/* 博客特色 */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏷️ 特色</label>
-                <input
-                  type="text"
-                  value={settings.heroBadge}
-                  onChange={(e) => setSettings({ ...settings, heroBadge: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏠 博客名称</label>
-                <input
-                  type="text"
-                  value={settings.siteName}
-                  onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
-                  placeholder="MDBLOG"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-              </div>
-
-              {/* 首页标题 */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">📌 标题</label>
-                <input
-                  type="text"
-                  value={settings.heroTitle}
-                  onChange={(e) => setSettings({ ...settings, heroTitle: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-              </div>
-
-              {/* 首页描述 */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">📝 描述</label>
-                <textarea
-                  value={settings.heroDescription}
-                  onChange={(e) => setSettings({ ...settings, heroDescription: e.target.value })}
-                  rows={2}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-              </div>
-
-              {/* 背景图片 */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🖼️ hero 背景图</label>
-                <input
-                  type="text"
-                  value={settings.backgroundImage}
-                  onChange={(e) => setSettings({ ...settings, backgroundImage: e.target.value })}
-                  placeholder="图片 URL"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🌌 全局背景图</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={settings.globalBackgroundImage}
-                    onChange={(e) => setSettings({ ...settings, globalBackgroundImage: e.target.value })}
-                    placeholder="背景图 URL"
-                    className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setSettings({ ...settings, globalBackgroundImage: defaultSettings.globalBackgroundImage })}
-                    className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-600 hover:text-brand-600 dark:border-slate-700 dark:text-slate-300"
-                  >
-                    重置
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 hero 背景色</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="color"
-                      value={settings.heroBgColor}
-                      onChange={(e) => setSettings({ ...settings, heroBgColor: e.target.value })}
-                      className="h-8 w-10 cursor-pointer rounded border border-slate-200"
-                    />
-                    <input
-                      type="text"
-                      value={settings.heroBgColor}
-                      onChange={(e) => setSettings({ ...settings, heroBgColor: e.target.value })}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 hero 文字色</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="color"
-                      value={settings.heroTextColor}
-                      onChange={(e) => setSettings({ ...settings, heroTextColor: e.target.value })}
-                      className="h-8 w-10 cursor-pointer rounded border border-slate-200"
-                    />
-                    <input
-                      type="text"
-                      value={settings.heroTextColor}
-                      onChange={(e) => setSettings({ ...settings, heroTextColor: e.target.value })}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 颜色设置 */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 标题色</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="color"
-                      value={settings.heroTextColor}
-                      onChange={(e) => setSettings({ ...settings, heroTextColor: e.target.value })}
-                      className="h-8 w-10 cursor-pointer rounded border border-slate-200"
-                    />
-                    <input
-                      type="text"
-                      value={settings.heroTextColor}
-                      onChange={(e) => setSettings({ ...settings, heroTextColor: e.target.value })}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 背景色</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="color"
-                      value={settings.heroBgColor}
-                      onChange={(e) => setSettings({ ...settings, heroBgColor: e.target.value })}
-                      className="h-8 w-10 cursor-pointer rounded border border-slate-200"
-                    />
-                    <input
-                      type="text"
-                      value={settings.heroBgColor}
-                      onChange={(e) => setSettings({ ...settings, heroBgColor: e.target.value })}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 渐变风格 */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🌈 渐变</label>
-                <select
-                  value={settings.heroBgGradient}
-                  onChange={(e) => setSettings({ ...settings, heroBgGradient: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                >
-                  <option value="from-slate-900 via-slate-800 to-brand-900">深蓝渐变</option>
-                  <option value="from-gray-900 via-gray-800 to-gray-900">纯灰渐变</option>
-                  <option value="from-slate-900 via-purple-900 to-slate-900">紫色渐变</option>
-                  <option value="from-slate-900 via-emerald-900 to-slate-900">绿色渐变</option>
-                  <option value="from-slate-900 via-rose-900 to-slate-900">玫瑰渐变</option>
-                  <option value="from-blue-900 via-indigo-900 to-purple-900">蓝色渐变</option>
-                  <option value="">无渐变</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏠 首页文章展示</label>
-                <div className="flex gap-2">
-                  {(
-                    ['card', 'list'] as const
-                  ).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setSettings({ ...settings, postDisplayMode: mode })}
-                      className={`flex-1 rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                        settings.postDisplayMode === mode
-                          ? 'border-brand-600 bg-brand-600 text-white'
-                          : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
-                    >
-                      {mode === 'card' ? '卡片式' : '列表式'}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-400">
-                  列表式将首页文章以简洁标题 + 时间 / 展示，不渲染封面卡片。
-                </p>
-              </div>
-
-              {/* 保存按钮 */}
               <button
-                onClick={saveSettings}
-                disabled={savingSettings}
-                className="w-full rounded-full bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-500 disabled:opacity-60"
+                type="button"
+                onClick={() => setActiveModal('password')}
+                className="group flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-brand-500 hover:bg-white hover:text-brand-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
               >
-                {savingSettings ? '保存中...' : '💾 保存设置'}
+                <span>🔐 重置密码</span>
+                <span className="text-xs font-normal text-slate-400 transition group-hover:text-brand-500">修改后台登录密码</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModal('totp')}
+                className="group flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-brand-500 hover:bg-white hover:text-brand-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+              >
+                <span>🛡️ 二步验证</span>
+                {totpStatus ? (
+                  <span
+                    className={`rounded-full px-3 py-0.5 text-[10px] font-bold uppercase tracking-wide transition ${
+                      totpStatus.enabled
+                        ? 'bg-green-100 text-green-600 group-hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300'
+                        : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {totpStatus.enabled ? 'ON' : 'OFF'}
+                  </span>
+                ) : (
+                  <span className="text-xs font-normal text-slate-400 transition group-hover:text-brand-500">加载状态…</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModal('custom')}
+                className="group flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-brand-500 hover:bg-white hover:text-brand-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+              >
+                <span>🎨 博客自定义</span>
+                <span className="text-xs font-normal text-slate-400 transition group-hover:text-brand-500">Hero、配色、默认封面</span>
               </button>
             </div>
+            <p className="mt-4 text-center text-[11px] text-slate-400">「博客自定义」新增默认封面 URL 字段，保存后新建页会自动填充。</p>
           </div>
         </div>
       </div>
+      {activeModal && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setActiveModal(null)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">设置详情</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {activeModal === 'password' && '重置密码'}
+                  {activeModal === 'totp' && '二步验证'}
+                  {activeModal === 'custom' && '博客自定义'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 transition hover:border-brand-200 hover:text-brand-600 dark:border-slate-700 dark:text-slate-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-y-auto space-y-4 pr-1 text-sm">
+              {activeModal === 'password' && (
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">当前密码</label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="输入当前密码"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">新密码</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="至少 8 位"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400"
+                      >
+                        {showPassword ? '🙈' : '👁'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">确认新密码</label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="重复输入"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePasswordChange}
+                    disabled={passwordSaving}
+                    className="w-full rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    {passwordSaving ? '更新中...' : '确认修改'}
+                  </button>
+                  <p className="text-xs text-slate-400">
+                    新密码会加密写入 <code>.env.local</code>（或 <code>.env</code>），更新后立即生效。
+                  </p>
+                </div>
+              )}
+
+              {activeModal === 'totp' && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-dashed border-slate-200 p-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    {totpStatus?.enabled ? '当前已启用二步验证，关闭前需输入一次动态验证码。' : '还未开启二步验证，建议搭配 Authenticator 使用，提高后台安全。'}
+                  </div>
+                  {totpStatus?.enabled ? (
+                    <div className="space-y-3">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400">输入当前 6 位验证码以关闭</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={totpDisableToken}
+                        onChange={(e) => setTotpDisableToken(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tracking-[0.4em] dark:border-slate-700 dark:bg-slate-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleTotpDisable}
+                        disabled={totpLoading}
+                        className="w-full rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        {totpLoading ? '处理...' : '关闭二步验证'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={handleTotpPrepare}
+                        disabled={totpLoading}
+                        className="w-full rounded-full bg-brand-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {totpLoading ? '生成中...' : '生成二维码'}
+                      </button>
+                      {totpSetup && (
+                        <div className="space-y-3 rounded-2xl border border-slate-200 p-3 text-center dark:border-slate-700">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">使用 Authenticator 扫描下方二维码：</p>
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(totpSetup.otpauthUrl)}`}
+                            alt="TOTP QR code"
+                            className="mx-auto h-48 w-48 rounded-lg border border-slate-200 object-cover dark:border-slate-700"
+                          />
+                          <p className="text-xs text-slate-400">秘钥：{totpSetup.secret}</p>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={totpEnableToken}
+                            onChange={(e) => setTotpEnableToken(e.target.value)}
+                            placeholder="输入 6 位验证码"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tracking-[0.4em] dark:border-slate-700 dark:bg-slate-800"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleTotpEnable}
+                            disabled={totpLoading}
+                            className="w-full rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          >
+                            {totpLoading ? '验证中...' : '确认开启'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeModal === 'custom' && (
+                <form
+                  className="space-y-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    saveSettings();
+                  }}
+                >
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏷️ 特色</label>
+                      <input
+                        type="text"
+                        value={customSettings.heroBadge}
+                        onChange={(e) => setCustomSettings({ ...customSettings, heroBadge: e.target.value })}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏠 博客名称</label>
+                      <input
+                        type="text"
+                        value={customSettings.siteName}
+                        onChange={(e) => setCustomSettings({ ...customSettings, siteName: e.target.value })}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">📌 首页标题</label>
+                    <input
+                      type="text"
+                      value={customSettings.heroTitle}
+                      onChange={(e) => setCustomSettings({ ...customSettings, heroTitle: e.target.value })}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">📝 首页描述</label>
+                    <textarea
+                      value={customSettings.heroDescription}
+                      onChange={(e) => setCustomSettings({ ...customSettings, heroDescription: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🖼 hero 背景图</label>
+                      <input
+                        type="text"
+                        value={customSettings.backgroundImage}
+                        onChange={(e) => setCustomSettings({ ...customSettings, backgroundImage: e.target.value })}
+                        placeholder="图片 URL"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🌌 全局背景图</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={customSettings.globalBackgroundImage}
+                          onChange={(e) => setCustomSettings({ ...customSettings, globalBackgroundImage: e.target.value })}
+                          placeholder="背景图 URL"
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setCustomSettings({ ...customSettings, globalBackgroundImage: defaultSettings.globalBackgroundImage })}
+                          className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-600 hover:text-brand-600 dark:border-slate-700 dark:text-slate-300"
+                        >
+                          重置
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🖼 默认封面 URL</label>
+                    <input
+                      type="text"
+                      value={customSettings.defaultCoverImage}
+                      onChange={(e) => setCustomSettings({ ...customSettings, defaultCoverImage: e.target.value })}
+                      placeholder="https://example.com/cover.png"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    />
+                    <p className="text-xs text-slate-400">保存后，/admin/new 页面的封面输入框将自动填充该 URL。</p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 hero 背景色</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="color"
+                          value={customSettings.heroBgColor}
+                          onChange={(e) => setCustomSettings({ ...customSettings, heroBgColor: e.target.value })}
+                          className="h-8 w-10 cursor-pointer rounded border border-slate-200"
+                        />
+                        <input
+                          type="text"
+                          value={customSettings.heroBgColor}
+                          onChange={(e) => setCustomSettings({ ...customSettings, heroBgColor: e.target.value })}
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🎨 hero 文字色</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="color"
+                          value={customSettings.heroTextColor}
+                          onChange={(e) => setCustomSettings({ ...customSettings, heroTextColor: e.target.value })}
+                          className="h-8 w-10 cursor-pointer rounded border border-slate-200"
+                        />
+                        <input
+                          type="text"
+                          value={customSettings.heroTextColor}
+                          onChange={(e) => setCustomSettings({ ...customSettings, heroTextColor: e.target.value })}
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🌈 渐变</label>
+                    <select
+                      value={customSettings.heroBgGradient}
+                      onChange={(e) => setCustomSettings({ ...customSettings, heroBgGradient: e.target.value })}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      <option value="from-slate-900 via-slate-800 to-brand-900">深蓝渐变</option>
+                      <option value="from-gray-900 via-gray-800 to-gray-900">纯灰渐变</option>
+                      <option value="from-slate-900 via-purple-900 to-slate-900">紫色渐变</option>
+                      <option value="from-slate-900 via-emerald-900 to-slate-900">绿色渐变</option>
+                      <option value="from-slate-900 via-rose-900 to-slate-900">玫瑰渐变</option>
+                      <option value="from-blue-900 via-indigo-900 to-purple-900">蓝色渐变</option>
+                      <option value="">无渐变</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🏠 首页文章展示</label>
+                    <div className="flex gap-2">
+                      {(
+                        ['card', 'list'] as const
+                      ).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setCustomSettings({ ...customSettings, postDisplayMode: mode })}
+                          className={`flex-1 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                            customSettings.postDisplayMode === mode
+                              ? 'border-brand-600 bg-brand-600 text-white'
+                              : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {mode === 'card' ? '卡片式' : '列表式'}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400">列表式将首页文章以简洁标题+时间展示，不渲染封面卡片。</p>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={savingSettings}
+                    className="w-full rounded-full bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-500 disabled:opacity-60"
+                  >
+                    {savingSettings ? '保存中...' : '💾 保存设置'}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {message.text && (
         <div
           className={`fixed top-6 right-6 z-50 max-w-sm rounded-lg px-4 py-3 text-sm shadow-lg transition-all ${

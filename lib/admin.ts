@@ -5,7 +5,9 @@ import path from 'path';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { clearSession, createSession, isAuthenticated, verifyPassword } from './auth';
+import { getSecuritySettings, verifyTotpToken } from './security';
 import { getAllPosts } from './blog';
+import { logSecurityEvent } from './logger';
 
 const postsDirectory = path.join(process.cwd(), 'content', 'posts');
 
@@ -108,6 +110,13 @@ async function requireAuth() {
   }
 }
 
+export async function requireApiAuth() {
+  const ok = await isAuthenticated();
+  if (!ok) {
+    throw new Error('Unauthorized');
+  }
+}
+
 async function ensurePostsDirectory() {
   await fs.mkdir(postsDirectory, { recursive: true });
 }
@@ -124,9 +133,21 @@ async function revalidateBlogPaths(slug?: string) {
 
 export async function loginAction(_: { error?: string } | undefined, formData: FormData) {
   const password = String(formData.get('password') || '');
+  const otp = String(formData.get('otp') || '').trim();
 
   if (!verifyPassword(password)) {
     return { error: '密码不对。' };
+  }
+
+  const security = await getSecuritySettings();
+  if (security.totpEnabled) {
+    if (!otp) {
+      return { error: '请输入二步验证码。' };
+    }
+
+    if (!security.totpSecret || !verifyTotpToken(security.totpSecret, otp)) {
+      return { error: '二步验证失败，请重新输入。' };
+    }
   }
 
   await createSession();
@@ -155,6 +176,10 @@ export async function uploadMarkdownAction(formData: FormData) {
 
   await fs.writeFile(targetPath, content, 'utf8');
   await revalidateBlogPaths(fileName.replace(/\.md$/i, ''));
+  await logSecurityEvent('upload.markdown', {
+    slug: fileName.replace(/\.md$/i, ''),
+    source: 'upload-api',
+  });
 }
 
 export async function deletePostAction(formData: FormData) {
@@ -170,6 +195,7 @@ export async function deletePostAction(formData: FormData) {
   await fs.unlink(filePath);
 
   await revalidateBlogPaths(slug);
+  await logSecurityEvent('post.delete', { slug, file: post.fileName });
 }
 
 export async function listAdminPosts() {
@@ -183,6 +209,7 @@ export async function downloadPostContent(slug: string) {
   const post = posts.find((item) => item.slug === slug);
   if (!post) throw new Error('文章不存在');
   const content = await fs.readFile(path.join(postsDirectory, post.fileName), 'utf8');
+  await logSecurityEvent('post.download', { slug, file: post.fileName });
   return {
     filename: post.fileName,
     content,
@@ -196,6 +223,7 @@ export async function getEditablePost(slug: string) {
   if (!post) throw new Error('文章不存在');
   const content = await fs.readFile(path.join(postsDirectory, post.fileName), 'utf8');
   const { frontmatter, body } = splitFrontmatter(content);
+  const coverValue = extractFrontmatterValue(frontmatter, 'cover_image');
 
   return {
     title: extractFrontmatterValue(frontmatter, 'title') || slug,
@@ -205,7 +233,7 @@ export async function getEditablePost(slug: string) {
     tags: extractTagsValue(frontmatter).join(', '),
     status: extractFrontmatterValue(frontmatter, 'status') || 'draft',
     publishedAt: extractFrontmatterValue(frontmatter, 'published_at'),
-    coverImage: extractFrontmatterValue(frontmatter, 'cover_image'),
+    coverImage: coverValue && coverValue.toLowerCase() !== 'null' ? coverValue : '',
     body: body.replace(/^\n+/, ''),
   };
 }
@@ -267,6 +295,7 @@ export async function updatePostAction(formData: FormData): Promise<{ success?: 
 
     await revalidateBlogPaths(originalSlug);
     await revalidateBlogPaths(nextSlug);
+    await logSecurityEvent('post.update', { originalSlug, slug: nextSlug });
 
     return { success: true, slug: nextSlug };
   } catch (e) {
@@ -320,6 +349,7 @@ export async function createPostAction(formData: FormData): Promise<{ success?: 
 
     await fs.writeFile(nextPath, markdown, 'utf8');
     await revalidateBlogPaths(nextSlug);
+    await logSecurityEvent('post.create', { slug: nextSlug });
     
     return { success: true, slug: nextSlug };
   } catch (e) {
