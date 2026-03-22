@@ -30,8 +30,8 @@ export function PostCard({ post }: { post: PostRecord }) {
     <article
       ref={cardRef}
       className={`group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition duration-500 will-change-transform dark:border-slate-800 dark:bg-slate-900 ${
-        isInView ? 'scale-[1.015]' : 'scale-100'
-      } hover:-translate-y-1 hover:scale-[1.03] hover:shadow-soft`}
+        isInView ? 'scale-[1.05]' : 'scale-100'
+      } hover:-translate-y-1 hover:scale-[1.1] hover:shadow-soft`}
     >
       <div className="relative mb-4 h-56 overflow-hidden rounded-3xl border-b border-slate-200 bg-slate-900 dark:border-slate-800">
         {hasCover ? (
