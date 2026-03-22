@@ -135,6 +135,14 @@ ADMIN_PASSWORD_HASH=your-hashed-password  # 可选，优先使用
 - ✨ 新增阅读时间统计
 - 🎨 优化所有页面的暗黑模式适配
 
+### v1.0.0 (2026-03-22)
+
+- 🎨 博客自定义弹窗可配置首页 Hero 背景图、默认封面等信息，并通过 `/api/blog-settings` 持久化到服务器端。
+- 🔎 Hero 卡片内置全站搜索：实时匹配标题/摘要/正文，支持下拉预览与一键跳转。
+- 🃏 首页文章卡片加入居中放大 + Hover 动画，移动端/桌面端都获得顺滑的视觉反馈。
+- 🧹 清理临时示例文章与日志文件，保持 `content/posts/` 目录整洁。
+- 🔐 默认后台密码重置为 `admin123`（通过 `.env.local` 中的 `ADMIN_PASSWORD_HASH` 管理），方便首次部署。
+
 ### v0.3.0 (2026-03-22)
 
 - 🔐 加固后台管理：所有 API 统一走 `requireApiAuth`、文件上传/导入限制扩展名和大小、前端 fetch 强制 `credentials: 'same-origin'`。
