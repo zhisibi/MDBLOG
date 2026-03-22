@@ -445,14 +445,42 @@ export default function AdminPage() {
                 {filteredPosts.map((post) => (
                   <div
                     key={post.slug}
-                    className="flex flex-col gap-3 rounded-xl border border-transparent px-3 py-3 transition hover:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 sm:flex-row sm:items-center"
+                    className="rounded-xl border border-transparent px-3 py-3 transition hover:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
-                    {/* 标题、分类、时间 - 可点击跳转编辑 */}
-                    <Link href={`/admin/edit/${post.slug}`} className="min-w-0 flex-1 hover:opacity-90">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug break-words sm:truncate">
-                        {post.title}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <Link href={`/admin/edit/${post.slug}`} className="min-w-0 flex-1 hover:opacity-90">
+                        <p className="text-sm font-semibold leading-snug text-slate-800 break-words dark:text-slate-100 sm:truncate">
+                          {post.title}
+                        </p>
+                      </Link>
+                      <div className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
+                        <a
+                          href={`/api/admin/download/${post.slug}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                          title="下载"
+                        >
+                          ⬇
+                        </a>
+                        <Link
+                          href={`/admin/edit/${post.slug}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                          title="编辑"
+                        >
+                          ✏
+                        </Link>
+                        <Link
+                          href={`/preview/${post.slug}`}
+                          target="_blank"
+                          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                          title="预览"
+                        >
+                          👁
+                        </Link>
+                        <DeleteButton slug={post.slug} onDeleted={() => fetchPosts()} />
+                      </div>
+                    </div>
+                    <Link href={`/admin/edit/${post.slug}`} className="mt-1 block min-w-0 text-[11px] text-slate-500 hover:opacity-80 dark:text-slate-400">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span
                           className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                             post.status === 'published'
@@ -467,33 +495,6 @@ export default function AdminPage() {
                         <span>{post.published_at ? new Date(post.published_at).toLocaleDateString('zh-CN') : ''}</span>
                       </div>
                     </Link>
-
-                    {/* 操作按钮 */}
-                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs text-slate-400 sm:flex-nowrap sm:justify-end">
-                      <a
-                        href={`/api/admin/download/${post.slug}`}
-                        className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
-                        title="下载"
-                      >
-                        ⬇
-                      </a>
-                      <Link
-                        href={`/admin/edit/${post.slug}`}
-                        className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
-                        title="编辑"
-                      >
-                        ✏
-                      </Link>
-                      <Link
-                        href={`/preview/${post.slug}`}
-                        target="_blank"
-                        className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
-                        title="预览"
-                      >
-                        👁
-                      </Link>
-                      <DeleteButton slug={post.slug} onDeleted={() => fetchPosts()} />
-                    </div>
                   </div>
                 ))}
               </div>
