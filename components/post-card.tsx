@@ -49,10 +49,10 @@ export function PostCard({ post }: { post: PostRecord }) {
       ref={cardRef}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition duration-500 will-change-transform dark:border-slate-800 dark:bg-slate-900"
+      className="group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition duration-150 will-change-transform dark:border-slate-800 dark:bg-slate-900"
       style={{
         transform: `translateY(${translateY}px) scale(${combinedScale})`,
-        transition: 'transform 450ms cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'transform 150ms cubic-bezier(0.45, 0, 0.3, 1)',
       }}
     >
       <div className="relative mb-4 h-56 overflow-hidden rounded-3xl border-b border-slate-200 bg-slate-900 dark:border-slate-800">
