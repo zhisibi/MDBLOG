@@ -33,14 +33,37 @@ export function HeroSection({ postsCount, categoriesCount, tagsCount }: HeroSect
   const [settings, setSettings] = useState<BlogSettings>(defaultSettings);
 
   useEffect(() => {
-    const saved = localStorage.getItem('mdblog_settings');
-    if (saved) {
+    const applyLocal = () => {
       try {
-        setSettings({ ...defaultSettings, ...JSON.parse(saved) });
-      } catch (e) {
-        console.error('Failed to parse settings', e);
+        const saved = window.localStorage.getItem('mdblog_settings');
+        if (saved) {
+          setSettings({ ...defaultSettings, ...JSON.parse(saved) });
+        }
+      } catch (error) {
+        console.error('Failed to parse local settings', error);
       }
-    }
+    };
+
+    applyLocal();
+
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/blog-settings', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const merged = { ...defaultSettings, ...(data?.settings ?? {}) };
+        window.localStorage.setItem('mdblog_settings', JSON.stringify(merged));
+        setSettings(merged);
+      } catch (error) {
+        console.error('Failed to fetch blog settings', error);
+      }
+    };
+
+    fetchSettings();
+
+    const handler = () => applyLocal();
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
   }, []);
 
   return (

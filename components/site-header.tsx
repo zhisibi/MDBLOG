@@ -14,17 +14,47 @@ export function SiteHeader() {
   const [siteName, setSiteName] = useState('MDBLOG');
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem('mdblog_settings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.siteName) {
-          setSiteName(parsed.siteName);
+    const applyLocal = () => {
+      try {
+        const saved = window.localStorage.getItem('mdblog_settings');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.siteName) {
+            setSiteName(parsed.siteName);
+          }
         }
+      } catch (error) {
+        console.error('Failed to read site name', error);
       }
-    } catch (e) {
-      console.error('Failed to read site name', e);
-    }
+    };
+
+    applyLocal();
+
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/blog-settings', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const merged = data?.settings ?? {};
+        if (merged?.siteName) {
+          setSiteName(merged.siteName);
+        }
+        let cached: Record<string, unknown> = {};
+        try {
+          const raw = window.localStorage.getItem('mdblog_settings');
+          cached = raw ? JSON.parse(raw) : {};
+        } catch (error) {
+          cached = {};
+        }
+        window.localStorage.setItem('mdblog_settings', JSON.stringify({ ...cached, ...merged }));
+      } catch (error) {
+        console.error('Failed to fetch blog settings for header', error);
+      }
+    };
+
+    fetchSettings();
+    window.addEventListener('storage', applyLocal);
+    return () => window.removeEventListener('storage', applyLocal);
   }, []);
 
   return (

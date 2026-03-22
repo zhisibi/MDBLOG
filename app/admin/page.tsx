@@ -138,33 +138,60 @@ export default function AdminPage() {
     }
   };
 
-  const loadSettings = () => {
+  const loadSettings = async () => {
     try {
-      const saved = localStorage.getItem('mdblog_settings');
-      if (saved) {
-        const merged = { ...defaultSettings, ...JSON.parse(saved) };
-        setSettings(merged);
-        setCustomSettings(merged);
-      } else {
-        setSettings(defaultSettings);
-        setCustomSettings(defaultSettings);
+      const res = await fetch('/api/blog-settings', { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error('failed to fetch settings');
       }
-    } catch (e) {
-      console.error('Failed to load settings', e);
+      const data = await res.json();
+      const merged = { ...defaultSettings, ...(data?.settings ?? {}) };
+      setSettings(merged);
+      setCustomSettings(merged);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('mdblog_settings', JSON.stringify(merged));
+      }
+    } catch (error) {
+      console.error('Failed to load settings from API', error);
+      try {
+        const saved = typeof window !== 'undefined' ? window.localStorage.getItem('mdblog_settings') : null;
+        if (saved) {
+          const merged = { ...defaultSettings, ...JSON.parse(saved) };
+          setSettings(merged);
+          setCustomSettings(merged);
+          return;
+        }
+      } catch (storageError) {
+        console.error('Failed to read fallback settings', storageError);
+      }
+      setSettings(defaultSettings);
+      setCustomSettings(defaultSettings);
     }
   };
 
-  const saveSettings = (next?: BlogSettings) => {
+  const saveSettings = async (next?: BlogSettings) => {
     setSavingSettings(true);
+    const payload = next ?? customSettings;
     try {
-      const merged = next ?? customSettings;
-      localStorage.setItem('mdblog_settings', JSON.stringify(merged));
+      const res = await fetch('/api/blog-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || '保存失败');
+      }
+      const merged = { ...defaultSettings, ...(data?.settings ?? payload) };
       setSettings(merged);
       setCustomSettings(merged);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('mdblog_settings', JSON.stringify(merged));
+      }
       setActiveModal(null);
       setMessage({ type: 'success', text: '设置已保存！' });
-    } catch (e) {
-      setMessage({ type: 'error', text: '保存失败' });
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : '保存失败' });
     } finally {
       setSavingSettings(false);
     }

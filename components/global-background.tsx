@@ -32,6 +32,28 @@ export function GlobalBackgroundSetter() {
 
     apply();
 
+    const syncFromServer = async () => {
+      try {
+        const res = await fetch('/api/blog-settings', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const merged = data?.settings ?? {};
+        let cached: Record<string, unknown> = {};
+        try {
+          const raw = window.localStorage.getItem('mdblog_settings');
+          cached = raw ? JSON.parse(raw) : {};
+        } catch (error) {
+          cached = {};
+        }
+        window.localStorage.setItem('mdblog_settings', JSON.stringify({ ...cached, ...merged }));
+        apply();
+      } catch (error) {
+        console.error('Failed to sync blog settings for background', error);
+      }
+    };
+
+    syncFromServer();
+
     const handler = () => apply();
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);

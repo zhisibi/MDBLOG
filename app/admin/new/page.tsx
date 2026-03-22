@@ -31,6 +31,24 @@ export default function AdminNewPostPage() {
       return defaultsTemplate;
     }
   });
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/blog-settings', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const merged = { ...defaultsTemplate, ...(data?.settings ?? {}) };
+        setDefaults(merged);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('mdblog_settings', JSON.stringify(merged));
+        }
+      } catch (error) {
+        console.error('Failed to sync blog settings for new post', error);
+      }
+    };
+    load();
+  }, []);
   const [error, setError] = useState('');
   const slugInputRef = useRef<HTMLInputElement>(null);
   const defaultPublishedAt = getCurrentLocalDateTime();
