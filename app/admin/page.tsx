@@ -796,14 +796,17 @@ export default function AdminPage() {
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-1">
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🖼 hero 背景图</label>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🖼 首页 Hero 背景图</label>
                       <input
                         type="text"
                         value={customSettings.backgroundImage}
                         onChange={(e) => setCustomSettings({ ...customSettings, backgroundImage: e.target.value })}
-                        placeholder="图片 URL"
+                        placeholder="https://example.com/hero-cover.jpg"
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
                       />
+                      <p className="text-[11px] text-slate-400">
+                        该图片将叠加在首页最顶部的大卡片背景上，建议使用 1600px 以上、轻量 JPG/WEBP。
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">🌌 全局背景图</label>
