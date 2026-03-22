@@ -30,8 +30,8 @@ export function PostCard({ post }: { post: PostRecord }) {
     <article
       ref={cardRef}
       className={`group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition duration-500 will-change-transform dark:border-slate-800 dark:bg-slate-900 ${
-        isInView ? 'scale-[1.01]' : 'scale-100'
-      } hover:-translate-y-1 hover:scale-[1.02] hover:shadow-soft`}
+        isInView ? 'scale-[1.015]' : 'scale-100'
+      } hover:-translate-y-1 hover:scale-[1.03] hover:shadow-soft`}
     >
       <div className="relative mb-4 h-56 overflow-hidden rounded-3xl border-b border-slate-200 bg-slate-900 dark:border-slate-800">
         {hasCover ? (
@@ -39,9 +39,7 @@ export function PostCard({ post }: { post: PostRecord }) {
             src={post.cover_image || ''}
             alt={`${post.title} 封面`}
             loading="lazy"
-            className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ${
-              isInView ? 'scale-105' : 'scale-100'
-            } group-hover:scale-110`}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900" />
