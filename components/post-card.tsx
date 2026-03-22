@@ -7,31 +7,53 @@ import type { PostRecord } from '@/lib/types';
 export function PostCard({ post }: { post: PostRecord }) {
   const hasCover = Boolean(post.cover_image);
   const cardRef = useRef<HTMLElement | null>(null);
-  const [isInView, setIsInView] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     const node = cardRef.current;
-    if (!node) return;
+    if (!node || typeof window === 'undefined') return;
+
+    const thresholds = Array.from({ length: 11 }, (_, index) => index / 10);
+    let rafId: number | null = null;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsInView(entry.isIntersecting);
+        const viewportHeight = window.innerHeight || entry.rootBounds?.height || 1;
+        const cardCenter = entry.boundingClientRect.top + entry.boundingClientRect.height / 2;
+        const viewportCenter = viewportHeight / 2;
+        const distance = Math.abs(cardCenter - viewportCenter);
+        const proximity = Math.max(0, 1 - distance / (viewportHeight / 2));
+        const isDesktop = window.matchMedia('(min-width: 640px)').matches;
+        const baseScale = isDesktop ? 0.05 : 0.2;
+        const targetScale = entry.isIntersecting ? 1 + proximity * baseScale : 1;
+
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = window.requestAnimationFrame(() => setScale(targetScale));
       },
-      {
-        threshold: 0.55,
-      }
+      { threshold: thresholds }
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, []);
+
+  const combinedScale = hovered ? scale * 1.05 : scale;
+  const translateY = hovered ? -4 : 0;
 
   return (
     <article
       ref={cardRef}
-      className={`group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition duration-500 will-change-transform dark:border-slate-800 dark:bg-slate-900 ${
-        isInView ? 'scale-[1.08] sm:scale-[1.05]' : 'scale-100'
-      } hover:-translate-y-1 hover:scale-[1.2] hover:shadow-soft`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition duration-500 will-change-transform dark:border-slate-800 dark:bg-slate-900"
+      style={{
+        transform: `translateY(${translateY}px) scale(${combinedScale})`,
+        transition: 'transform 450ms cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
     >
       <div className="relative mb-4 h-56 overflow-hidden rounded-3xl border-b border-slate-200 bg-slate-900 dark:border-slate-800">
         {hasCover ? (
@@ -39,7 +61,7 @@ export function PostCard({ post }: { post: PostRecord }) {
             src={post.cover_image || ''}
             alt={`${post.title} 封面`}
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900" />
