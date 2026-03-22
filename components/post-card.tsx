@@ -1,18 +1,47 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { PostRecord } from '@/lib/types';
 
 export function PostCard({ post }: { post: PostRecord }) {
   const hasCover = Boolean(post.cover_image);
+  const cardRef = useRef<HTMLElement | null>(null);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting);
+      },
+      {
+        threshold: 0.55,
+      }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <article className="group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-slate-800 dark:bg-slate-900">
+    <article
+      ref={cardRef}
+      className={`group rounded-3xl border border-slate-200 bg-white p-0 shadow-sm transition duration-500 will-change-transform dark:border-slate-800 dark:bg-slate-900 ${
+        isInView ? 'scale-[1.01]' : 'scale-100'
+      } hover:-translate-y-1 hover:scale-[1.02] hover:shadow-soft`}
+    >
       <div className="relative mb-4 h-56 overflow-hidden rounded-3xl border-b border-slate-200 bg-slate-900 dark:border-slate-800">
         {hasCover ? (
           <img
             src={post.cover_image || ''}
             alt={`${post.title} 封面`}
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ${
+              isInView ? 'scale-105' : 'scale-100'
+            } group-hover:scale-110`}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900" />
