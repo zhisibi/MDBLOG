@@ -296,7 +296,8 @@ export default function AdminPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        credentials: 'same-origin',
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
       });
 
       const payload = (await response.json().catch(() => ({} as Record<string, string>))) || {};
